@@ -10,7 +10,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 WALLETS = ["TSjQYavgJBGPr8iV3zH7qo1bx927qKVMwA"]  # İzlenecek cüzdanlar
 SLEEP = 10
 MAX_TX_CHECK = 5
-BALINA_LIMIT = 1000  # USD değerinde büyük işlem limiti
+BALINA_LIMIT = 1000  # USD değeri üzeri işlemler balina sayılır
 
 # ---------------- DURUMLAR ----------------
 group_chat_id = None
@@ -75,12 +75,10 @@ def analyze_tx(tx, wallet):
         daily_out[wallet] += 1
         daily_token_out[wallet][coin] = daily_token_out[wallet].get(coin,0) + amount
 
-    # USD ve TL hesaplama
     usd_price = get_price("TRXUSDT") if coin=="TRX" else 1
     usdt_try = get_price("USDTTRY")
     usd_value = amount * usd_price
     tl_value = usd_value * usdt_try
-
     whale_alert = "🐋 BALİNA HAREKETİ!" if usd_value >= BALINA_LIMIT else ""
 
     balances = get_balance(wallet)
@@ -131,15 +129,7 @@ async def register_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def bakiye(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for wallet in WALLETS:
         balances = get_balance(wallet)
-        msg = f"""
-📊 CÜZDAN BAKİYESİ
-
-Cüzdan: {wallet}
-
-TRX: {balances['TRX']:,.2f}
-USDT: {balances['USDT']:,.2f}
-USDC: {balances['USDC']:,.2f}
-"""
+        msg = f"📊 CÜZDAN BAKİYESİ\n\nCüzdan: {wallet}\nTRX: {balances['TRX']:,.2f}\nUSDT: {balances['USDT']:,.2f}\nUSDC: {balances['USDC']:,.2f}"
         await update.message.reply_text(msg)
 
 async def zrapor(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -158,7 +148,6 @@ async def islemler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def yardim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = """
 🤖 BOT KOMUTLARI
-
 /bakiye   → Cüzdan bakiyesi
 /zrapor   → Günlük Z raporu
 /islemler → Son işlemler
@@ -207,11 +196,16 @@ async def start_monitor(app):
 # ---------------- MAIN ----------------
 def main():
     app = ApplicationBuilder().token(TOKEN).post_init(start_monitor).build()
-    app.add_handler(MessageHandler(filters.ALL, register_group))
+    
+    # Sadece ilk mesajla grubu kaydet
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), register_group))
+    
+    # Komutlar
     app.add_handler(CommandHandler("bakiye", bakiye))
     app.add_handler(CommandHandler("zrapor", zrapor))
     app.add_handler(CommandHandler("islemler", islemler))
     app.add_handler(CommandHandler("yardim", yardim))
+
     print("✅ TRON BOT AKTİF")
     app.run_polling()
 
