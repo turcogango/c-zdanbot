@@ -5,14 +5,13 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN=os.getenv("BOT_TOKEN")
 
-WALLETS = [
-    "TSjQYavgJBGPr8iV3zH7qo1bx927qKVMwA"
-]
+WALLETS=["TSjQYavgJBGPr8iV3zH7qo1bx927qKVMwA"]
 
-SLEEP = 10
-MAX_TX_CHECK = 5
+SLEEP=10
+MAX_TX_CHECK=5
+WHALE_LIMIT=1000
 
 group_chat_id=None
 last_tx={wallet:None for wallet in WALLETS}
@@ -25,7 +24,18 @@ daily_token_out={wallet:{} for wallet in WALLETS}
 
 current_day=datetime.now().date()
 
-# ---------------- API ----------------
+# ---------- PRICE ----------
+
+def get_price(pair):
+
+    try:
+        url=f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
+        r=requests.get(url,timeout=5).json()
+        return float(r["price"])
+    except:
+        return 0
+
+# ---------- API ----------
 
 def get_transactions(wallet):
 
@@ -66,7 +76,7 @@ def get_balance(wallet):
 
         return {"TRX":0,"USDT":0,"USDC":0}
 
-# ---------------- ANALİZ ----------------
+# ---------- ANALYZE ----------
 
 def analyze_tx(tx,wallet):
 
@@ -91,41 +101,61 @@ def analyze_tx(tx,wallet):
     if receiver==wallet:
 
         direction="📥 GİRİŞ"
+
         daily_in[wallet]+=1
         daily_token_in[wallet][coin]=daily_token_in[wallet].get(coin,0)+amount
 
     else:
 
         direction="📤 ÇIKIŞ"
+
         daily_out[wallet]+=1
         daily_token_out[wallet][coin]=daily_token_out[wallet].get(coin,0)+amount
 
+    if coin=="TRX":
+        usd_price=get_price("TRXUSDT")
+    else:
+        usd_price=1
+
+    usdt_try=get_price("USDTTRY")
+
+    usd_value=amount*usd_price
+    tl_value=usd_value*usdt_try
+
     balances=get_balance(wallet)
 
-    msg=f"""
-🏦 TRON CÜZDAN HAREKETİ
+    whale=""
 
-Adres
-{wallet}
+    if usd_value>=WHALE_LIMIT:
+
+        whale="🐋 BALİNA HAREKETİ!"
+
+    msg=f"""
+🏦 TRON WALLET
 
 {direction}
 
-💰 Coin: {coin}
-💵 Miktar: {amount:,.2f}
+Coin: {coin}
+Miktar: {amount:,.2f}
 
-📊 Güncel Bakiye
+USD: ${usd_value:,.2f}
+TL: ₺{tl_value:,.2f}
+
+{whale}
+
+📊 Bakiye
 
 TRX: {balances['TRX']:,.2f}
 USDT: {balances['USDT']:,.2f}
 USDC: {balances['USDC']:,.2f}
 
-🔗 TX
+TX
 https://tronscan.org/#/transaction/{tx['hash']}
 """
 
     return msg
 
-# ---------------- Z RAPORU ----------------
+# ---------- Z RAPOR ----------
 
 def generate_z_report(wallet):
 
@@ -148,7 +178,7 @@ def generate_z_report(wallet):
 
     return msg
 
-# ---------------- TELEGRAM ----------------
+# ---------- TELEGRAM ----------
 
 async def register_group(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
@@ -160,7 +190,7 @@ async def register_group(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text("✅ TRON takip botu aktif")
 
-# ---------------- KOMUTLAR ----------------
+# ---------- COMMANDS ----------
 
 async def bakiye(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
@@ -169,7 +199,7 @@ async def bakiye(update:Update,context:ContextTypes.DEFAULT_TYPE):
         balances=get_balance(wallet)
 
         msg=f"""
-📊 CÜZDAN BAKİYE
+📊 BAKİYE
 
 {wallet}
 
@@ -184,9 +214,7 @@ async def zrapor(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
     for wallet in WALLETS:
 
-        msg=generate_z_report(wallet)
-
-        await update.message.reply_text(msg)
+        await update.message.reply_text(generate_z_report(wallet))
 
 async def islemler(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
@@ -208,21 +236,14 @@ async def yardim(update:Update,context:ContextTypes.DEFAULT_TYPE):
 🤖 BOT KOMUTLARI
 
 /bakiye
-Cüzdan bakiyesi
-
 /zrapor
-Günlük rapor
-
 /islemler
-Son işlemler
-
 /yardim
-Komut listesi
 """
 
     await update.message.reply_text(msg)
 
-# ---------------- MONITOR ----------------
+# ---------- MONITOR ----------
 
 async def monitor(app):
 
@@ -284,7 +305,7 @@ async def start_monitor(app):
 
     asyncio.create_task(monitor(app))
 
-# ---------------- MAIN ----------------
+# ---------- MAIN ----------
 
 def main():
 
