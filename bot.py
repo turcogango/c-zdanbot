@@ -3,7 +3,7 @@ import requests
 import asyncio
 from datetime import datetime
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
 
@@ -15,7 +15,6 @@ SLEEP = 10
 MAX_TX_CHECK = 5
 
 group_chat_id=None
-
 last_tx={wallet:None for wallet in WALLETS}
 
 daily_in={wallet:0 for wallet in WALLETS}
@@ -26,7 +25,6 @@ daily_token_out={wallet:{} for wallet in WALLETS}
 
 current_day=datetime.now().date()
 
-
 # ---------------- API ----------------
 
 def get_transactions(wallet):
@@ -34,7 +32,6 @@ def get_transactions(wallet):
     try:
 
         url=f"https://apilist.tronscanapi.com/api/transaction?address={wallet}&limit={MAX_TX_CHECK}"
-
         r=requests.get(url,timeout=5).json()
 
         return r["data"]
@@ -43,13 +40,11 @@ def get_transactions(wallet):
 
         return []
 
-
 def get_balance(wallet):
 
     try:
 
         url=f"https://apilist.tronscanapi.com/api/account?address={wallet}"
-
         r=requests.get(url,timeout=5).json()
 
         trx=r.get("balance",0)/1_000_000
@@ -61,7 +56,6 @@ def get_balance(wallet):
         for t in tokens:
 
             symbol=t["tokenAbbr"]
-
             balance=float(t["balance"])/1_000_000
 
             balances[symbol]=balance
@@ -71,7 +65,6 @@ def get_balance(wallet):
     except:
 
         return {"TRX":0,"USDT":0,"USDC":0}
-
 
 # ---------------- ANALİZ ----------------
 
@@ -98,17 +91,13 @@ def analyze_tx(tx,wallet):
     if receiver==wallet:
 
         direction="📥 GİRİŞ"
-
         daily_in[wallet]+=1
-
         daily_token_in[wallet][coin]=daily_token_in[wallet].get(coin,0)+amount
 
     else:
 
         direction="📤 ÇIKIŞ"
-
         daily_out[wallet]+=1
-
         daily_token_out[wallet][coin]=daily_token_out[wallet].get(coin,0)+amount
 
     balances=get_balance(wallet)
@@ -136,32 +125,28 @@ https://tronscan.org/#/transaction/{tx['hash']}
 
     return msg
 
-
 # ---------------- Z RAPORU ----------------
 
 def generate_z_report(wallet):
 
     msg=f"📊 GÜNLÜK Z RAPORU\n\nWallet: {wallet}\n\n"
 
-    msg+=f"Giriş İşlemleri: {daily_in[wallet]}\n"
-    msg+=f"Çıkış İşlemleri: {daily_out[wallet]}\n\n"
+    msg+=f"Giriş: {daily_in[wallet]}\n"
+    msg+=f"Çıkış: {daily_out[wallet]}\n\n"
 
     msg+="Token Girişleri\n"
 
     for coin,amt in daily_token_in[wallet].items():
-
         msg+=f"{coin}: {amt:,.2f}\n"
 
     msg+="\nToken Çıkışları\n"
 
     for coin,amt in daily_token_out[wallet].items():
-
         msg+=f"{coin}: {amt:,.2f}\n"
 
     msg+=f"\nSaat: {datetime.now()}"
 
     return msg
-
 
 # ---------------- TELEGRAM ----------------
 
@@ -175,6 +160,25 @@ async def register_group(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text("✅ TRON takip botu aktif")
 
+# ---------------- KOMUTLAR ----------------
+
+async def bakiye(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    for wallet in WALLETS:
+
+        balances=get_balance(wallet)
+
+        msg=f"""
+📊 CÜZDAN BAKİYE
+
+{wallet}
+
+TRX: {balances['TRX']:,.2f}
+USDT: {balances['USDT']:,.2f}
+USDC: {balances['USDC']:,.2f}
+"""
+
+        await update.message.reply_text(msg)
 
 async def zrapor(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
@@ -184,6 +188,39 @@ async def zrapor(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(msg)
 
+async def islemler(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    for wallet in WALLETS:
+
+        txs=get_transactions(wallet)
+
+        msg="📜 SON İŞLEMLER\n\n"
+
+        for tx in txs[:5]:
+
+            msg+=f"https://tronscan.org/#/transaction/{tx['hash']}\n"
+
+        await update.message.reply_text(msg)
+
+async def yardim(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    msg="""
+🤖 BOT KOMUTLARI
+
+/bakiye
+Cüzdan bakiyesi
+
+/zrapor
+Günlük rapor
+
+/islemler
+Son işlemler
+
+/yardim
+Komut listesi
+"""
+
+    await update.message.reply_text(msg)
 
 # ---------------- MONITOR ----------------
 
@@ -198,12 +235,9 @@ async def monitor(app):
         if group_chat_id is None:
 
             await asyncio.sleep(5)
-
             continue
 
         now=datetime.now()
-
-        # gece 00:00 z raporu
 
         if now.date()!=current_day:
 
@@ -220,8 +254,6 @@ async def monitor(app):
 
             current_day=now.date()
 
-        # wallet kontrol
-
         for wallet in WALLETS:
 
             txs=get_transactions(wallet)
@@ -236,7 +268,6 @@ async def monitor(app):
             if last_tx[wallet] is None:
 
                 last_tx[wallet]=txid
-
                 continue
 
             if txid!=last_tx[wallet]:
@@ -249,11 +280,9 @@ async def monitor(app):
 
         await asyncio.sleep(SLEEP)
 
-
 async def start_monitor(app):
 
     asyncio.create_task(monitor(app))
-
 
 # ---------------- MAIN ----------------
 
@@ -263,12 +292,14 @@ def main():
 
     app.add_handler(MessageHandler(filters.ALL,register_group))
 
+    app.add_handler(CommandHandler("bakiye",bakiye))
     app.add_handler(CommandHandler("zrapor",zrapor))
+    app.add_handler(CommandHandler("islemler",islemler))
+    app.add_handler(CommandHandler("yardim",yardim))
 
-    print("TRON bot çalışıyor")
+    print("TRON BOT AKTİF")
 
     app.run_polling()
-
 
 if __name__=="__main__":
     main()
