@@ -5,8 +5,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
 # ---------------- AYARLAR ----------------
-TOKEN = "TELEGRAM_BOT_TOKEN"
-WALLETS = ["TRON_ADRESI"]    # Birden fazla cüzdan ekleyebilirsin
+TOKEN = "8649743934:AAGDNAnQK-M3GKw9jHdBPAe1RnQ8rbdgtug"
+WALLETS = ["TSjQYavgJBGPr8iV3zH7qo1bx927qKVMwA"]    # Birden fazla cüzdan ekleyebilirsin
 SLEEP = 5                     # Kontrol aralığı (saniye)
 MAX_TX_CHECK = 10
 
