@@ -124,6 +124,8 @@ async def register_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if group_chat_id is None:
         group_chat_id = update.effective_chat.id
         await update.message.reply_text("✅ TRON takip botu aktif! Artık grup işlemleri izleniyor.")
+        # Grup kaydedildikten hemen sonra monitor başlat
+        asyncio.create_task(monitor(context.application))
 
 # ---------------- KOMUTLAR ----------------
 async def bakiye(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -190,21 +192,18 @@ async def monitor(app):
 
         await asyncio.sleep(SLEEP)
 
-async def start_monitor(app):
-    asyncio.create_task(monitor(app))
-
 # ---------------- MAIN ----------------
 def main():
-    app = ApplicationBuilder().token(TOKEN).post_init(start_monitor).build()
-    
-    # Sadece ilk mesajla grubu kaydet
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), register_group))
-    
+    app = ApplicationBuilder().token(TOKEN).build()
+
     # Komutlar
     app.add_handler(CommandHandler("bakiye", bakiye))
     app.add_handler(CommandHandler("zrapor", zrapor))
     app.add_handler(CommandHandler("islemler", islemler))
     app.add_handler(CommandHandler("yardim", yardim))
+
+    # Sadece ilk mesajla grubu kaydet
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), register_group))
 
     print("✅ TRON BOT AKTİF")
     app.run_polling()
