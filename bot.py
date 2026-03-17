@@ -42,7 +42,6 @@ def analyze_tx(tx, tx_hash):
         receiver = "UNKNOWN"
         coin = "UNKNOWN"
         amount = 0
-        tx_type = "UNKNOWN"
 
         # TRC20 işlemler (token)
         if tx.get("trc20TransferInfo") and len(tx["trc20TransferInfo"]) > 0:
@@ -53,7 +52,6 @@ def analyze_tx(tx, tx_hash):
             decimals = int(t.get("decimals", 6))
             raw_amount = t.get("amount_str") or t.get("amount") or "0"
             amount = float(raw_amount) / (10 ** decimals)
-            tx_type = "TOKEN"
 
         # TRX işlemler
         elif tx.get("contractData") and "amount" in tx["contractData"]:
@@ -61,16 +59,15 @@ def analyze_tx(tx, tx_hash):
             receiver = tx.get("toAddress") or "UNKNOWN"
             coin = "TRX"
             amount = tx["contractData"]["amount"] / 1_000_000
-            tx_type = "TRX"
 
         # Güncel kur ve TL hesaplama
         usdt_try = get_price("USDTTRY")
         if usdt_try == 0:
             usdt_try = 44.05  # fallback
 
-        if tx_type == "TOKEN":
+        if coin.upper() in ["USDT", "USDC"]:
             tl_total = amount * usdt_try
-        elif tx_type == "TRX":
+        elif coin.upper() == "TRX":
             trx_usdt = get_price("TRXUSDT")
             if trx_usdt == 0:
                 trx_usdt = 0.062  # fallback
@@ -95,9 +92,7 @@ def analyze_tx(tx, tx_hash):
 {receiver}
 
 💵 {amount_str} gönderilmiş
-💵 TL değeri: {tl_total_str}
-
-🔹 İşlem Türü: {tx_type}"""
+💵 TL değeri: {tl_total_str}"""
         return msg
 
     except Exception as e:
