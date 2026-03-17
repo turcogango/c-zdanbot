@@ -62,7 +62,7 @@ def analyze_tx(tx, tx_hash):
         if coin.upper() in ["USDT", "USDC"]:
             usdt_try = get_binance_price("USDTTRY")
             if usdt_try == 0:
-                usdt_try = 44.11  # fallback
+                usdt_try = 44.40  # fallback
             tl_total = amount * usdt_try
             cur_str = f"{usdt_try:,.3f} ₺"
         elif coin.upper() == "TRX":
