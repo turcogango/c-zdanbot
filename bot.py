@@ -6,7 +6,6 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
-BALINA_LIMIT = 10000  # $10k üstü balina uyarısı
 
 # ---------------- API ----------------
 def get_tx(tx_hash):
@@ -22,7 +21,8 @@ def get_tx(tx_hash):
 def get_price(pair):
     try:
         url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
-        return float(requests.get(url, timeout=5).json()["price"])
+        price = float(requests.get(url, timeout=5).json()["price"])
+        return price
     except:
         return 0
 
@@ -36,7 +36,7 @@ def analyze_tx(tx, tx_hash):
         else:
             date = "Bilinmiyor"
 
-        # ADRESLER - TRC20 transferlerde doğru adresleri çek
+        # ADRESLER - TRC20 işlemlerde doğru adresleri çek
         sender = "UNKNOWN"
         receiver = "UNKNOWN"
 
@@ -44,36 +44,25 @@ def analyze_tx(tx, tx_hash):
             t = tx["trc20TransferInfo"][0]
             sender = t.get("from_address") or t.get("fromAddress") or "UNKNOWN"
             receiver = t.get("to_address") or t.get("toAddress") or "UNKNOWN"
-        else:
-            sender = tx.get("ownerAddress") or tx.get("fromAddress") or "UNKNOWN"
-            receiver = tx.get("toAddress") or "UNKNOWN"
-
-        # COİN ve MİKTAR
-        coin = "UNKNOWN"
-        amount = 0
-
-        if tx.get("trc20TransferInfo") and len(tx["trc20TransferInfo"]) > 0:
-            t = tx["trc20TransferInfo"][0]
             coin = t.get("symbol", "TOKEN")
             decimals = int(t.get("decimals", 6))
             raw_amount = t.get("amount_str") or t.get("amount") or "0"
             amount = float(raw_amount) / (10 ** decimals)
         elif tx.get("contractData") and "amount" in tx["contractData"]:
+            sender = tx.get("ownerAddress") or tx.get("fromAddress") or "UNKNOWN"
+            receiver = tx.get("toAddress") or "UNKNOWN"
             coin = "TRX"
             amount = tx["contractData"]["amount"] / 1_000_000
-
-        # FİYAT
-        usdt_try = get_price("USDTTRY")
-        trx_price = get_price("TRXUSDT")
-
-        if coin in ["USDT", "USDC"]:
-            usd_value = amount
         else:
-            usd_value = amount * trx_price
+            coin = "UNKNOWN"
+            amount = 0
 
-        tl_value = usd_value * usdt_try
+        # GÜNCEL KUR
+        usdt_try = get_price("USDTTRY")
+        if usdt_try == 0:
+            usdt_try = 25.50  # fallback
 
-        whale = "🐋 BALİNA TRANSFERİ!" if usd_value >= BALINA_LIMIT else ""
+        tl_total = amount * usdt_try
 
         msg = f"""
 🔍 TRON TX ANALİZ
@@ -88,16 +77,11 @@ def analyze_tx(tx, tx_hash):
 👤 ALICI:
 {receiver}
 
-💰 MİKTAR:
-{amount:,.6f} {coin}
+💵 GÜNCEL KUR:
+1 USDT = ₺{usdt_try:,.2f}
 
-💵 USD:
-${usd_value:,.2f}
-
-🇹🇷 TL:
-₺{tl_value:,.2f}
-
-{whale}
+💵 TL TOPLAM:
+₺{tl_total:,.2f}
 
 🔗 https://tronscan.org/#/transaction/{tx_hash}
 """
