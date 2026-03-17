@@ -18,18 +18,15 @@ def get_tx(tx_hash):
     except:
         return None
 
-# Ücretsiz güvenilir döviz kuru
-def get_price(pair):
+# Binance API ile anlık kur
+def get_binance_price(symbol):
     try:
-        base = pair[:-3]
-        target = pair[-3:]
-        url = f"https://api.exchangerate.host/convert?from={base}&to={target}"
+        url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
         r = requests.get(url, timeout=5).json()
-        if r.get("success") and r.get("result"):
-            return float(r["result"])
+        price = float(r["price"])
+        return price
     except:
-        pass
-    return 0
+        return 0  # fallback
 
 # ---------------- ANALİZ ----------------
 def analyze_tx(tx, tx_hash):
@@ -61,28 +58,32 @@ def analyze_tx(tx, tx_hash):
             amount = tx["contractData"]["amount"] / 1_000_000
 
         # Güncel kur ve TL hesaplama
-        usdt_try = get_price("USDTTRY")
-        if usdt_try == 0:
-            usdt_try = 44.05  # fallback
-
+        tl_total = 0
         if coin.upper() in ["USDT", "USDC"]:
+            usdt_try = get_binance_price("USDTTRY")
+            if usdt_try == 0:
+                usdt_try = 44.05  # fallback
             tl_total = amount * usdt_try
         elif coin.upper() == "TRX":
-            trx_usdt = get_price("TRXUSDT")
-            if trx_usdt == 0:
-                trx_usdt = 0.062  # fallback
-            tl_total = amount * trx_usdt * usdt_try
-        else:
-            tl_total = 0
+            trx_try = get_binance_price("TRXTRY")
+            if trx_try == 0:
+                trx_try = 2.73  # fallback
+            tl_total = amount * trx_try
 
         amount_str = f"{amount:,.2f} {coin}"
         tl_total_str = f"₺{tl_total:,.2f}"
-        usdt_try_str = f"{usdt_try:,.3f} ₺"
+        # Güncel kuru seçilen coin ile göster
+        if coin.upper() in ["USDT", "USDC"]:
+            cur_str = f"{usdt_try:,.3f} ₺"
+        elif coin.upper() == "TRX":
+            cur_str = f"{trx_try:,.3f} ₺"
+        else:
+            cur_str = "Bilinmiyor"
 
         msg = f"""💰 TX Bilgisi:
 {tx_hash}
 
-💸 Güncel KUR: {usdt_try_str}
+💸 Güncel KUR: {cur_str}
 📅 {date} Tarihinde
 
 👤 GÖNDEREN:
