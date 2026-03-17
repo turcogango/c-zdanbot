@@ -18,20 +18,18 @@ def get_tx(tx_hash):
     except:
         return None
 
-# Binance API ile anlık kur
+# Binance API ile anlık fiyat
 def get_binance_price(symbol):
     try:
         url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
         r = requests.get(url, timeout=5).json()
-        price = float(r["price"])
-        return price
+        return float(r["price"])
     except:
         return 0  # fallback
 
 # ---------------- ANALİZ ----------------
 def analyze_tx(tx, tx_hash):
     try:
-        # Zaman
         timestamp = tx.get("block_ts") or tx.get("timestamp")
         date = datetime.fromtimestamp(int(timestamp)/1000).strftime("%d %B %Y %H:%M:%S") if timestamp else "Bilinmiyor"
 
@@ -40,7 +38,7 @@ def analyze_tx(tx, tx_hash):
         coin = "UNKNOWN"
         amount = 0
 
-        # TRC20 işlemler (token)
+        # TRC20 token
         if tx.get("trc20TransferInfo") and len(tx["trc20TransferInfo"]) > 0:
             t = tx["trc20TransferInfo"][0]
             sender = t.get("from_address") or t.get("fromAddress") or "UNKNOWN"
@@ -50,35 +48,32 @@ def analyze_tx(tx, tx_hash):
             raw_amount = t.get("amount_str") or t.get("amount") or "0"
             amount = float(raw_amount) / (10 ** decimals)
 
-        # TRX işlemler
+        # TRX işlemi
         elif tx.get("contractData") and "amount" in tx["contractData"]:
             sender = tx.get("ownerAddress") or tx.get("fromAddress") or "UNKNOWN"
             receiver = tx.get("toAddress") or "UNKNOWN"
             coin = "TRX"
             amount = tx["contractData"]["amount"] / 1_000_000
 
-        # Güncel kur ve TL hesaplama
+        # TL hesaplama
         tl_total = 0
+        cur_str = "Bilinmiyor"
+
         if coin.upper() in ["USDT", "USDC"]:
             usdt_try = get_binance_price("USDTTRY")
             if usdt_try == 0:
-                usdt_try = 44.05  # fallback
+                usdt_try = 44.11  # fallback
             tl_total = amount * usdt_try
+            cur_str = f"{usdt_try:,.3f} ₺"
         elif coin.upper() == "TRX":
             trx_try = get_binance_price("TRXTRY")
             if trx_try == 0:
                 trx_try = 2.73  # fallback
             tl_total = amount * trx_try
+            cur_str = f"{trx_try:,.3f} ₺"
 
         amount_str = f"{amount:,.2f} {coin}"
         tl_total_str = f"₺{tl_total:,.2f}"
-        # Güncel kuru seçilen coin ile göster
-        if coin.upper() in ["USDT", "USDC"]:
-            cur_str = f"{usdt_try:,.3f} ₺"
-        elif coin.upper() == "TRX":
-            cur_str = f"{trx_try:,.3f} ₺"
-        else:
-            cur_str = "Bilinmiyor"
 
         msg = f"""💰 TX Bilgisi:
 {tx_hash}
