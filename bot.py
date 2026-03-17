@@ -42,7 +42,6 @@ def analyze_tx(tx, tx_hash):
         coin = "UNKNOWN"
         amount = 0
 
-        # TRC20 transferleri (USDT vs)
         if tx.get("trc20TransferInfo") and len(tx["trc20TransferInfo"]) > 0:
             t = tx["trc20TransferInfo"][0]
             sender = t.get("from_address") or t.get("fromAddress") or "UNKNOWN"
@@ -51,7 +50,6 @@ def analyze_tx(tx, tx_hash):
             decimals = int(t.get("decimals", 6))
             raw_amount = t.get("amount_str") or t.get("amount") or "0"
             amount = float(raw_amount) / (10 ** decimals)
-        # TRX transfer fallback
         elif tx.get("contractData") and "amount" in tx["contractData"]:
             sender = tx.get("ownerAddress") or tx.get("fromAddress") or "UNKNOWN"
             receiver = tx.get("toAddress") or "UNKNOWN"
@@ -65,36 +63,32 @@ def analyze_tx(tx, tx_hash):
                 usdt_try = 25.50  # fallback
             tl_total = amount * usdt_try
         else:
-            # TRX vs için TRXUSDT * USDTTRY
             trx_price = get_price("TRXUSDT")
             usdt_try = get_price("USDTTRY")
             if trx_price == 0:
-                trx_price = 0.06  # fallback
+                trx_price = 0.06
             if usdt_try == 0:
-                usdt_try = 25.50  # fallback
+                usdt_try = 25.50
             tl_total = amount * trx_price * usdt_try
 
-        msg = f"""
-🔍 TRON TX ANALİZ
+        amount_str = f"${amount:,.2f} {coin}"
+        tl_total_str = f"₺{tl_total:,.2f}"
+        usdt_try_str = f"₺{usdt_try:,.3f}"
 
-🆔 {tx_hash}
+        msg = f"""💰 TX Bilgisi:
+{tx_hash}
 
-📅 {date}
+💸 Güncel KUR: {usdt_try_str} ₺
+📅 {date} Tarihinde
 
-👤 GÖNDEREN:
-{sender}
+{sender} adresinden
+{receiver} adresine
 
-👤 ALICI:
-{receiver}
+💵 {amount_str} gönderilmiş
+💵 {amount_str} Güncel kur ile kom hariç: {tl_total_str}
 
-💰 Gönderilen: {amount:,.2f} {coin}
+https://tronscan.org/#/transaction/{tx_hash}"""
 
-💵 GÜNCEL KUR: 1 USDT = ₺{usdt_try:,.2f}
-
-💵 TL TOPLAM: ₺{tl_total:,.2f}
-
-🔗 https://tronscan.org/#/transaction/{tx_hash}
-"""
         return msg
 
     except Exception as e:
