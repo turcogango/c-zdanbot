@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
-BALINA_LIMIT = 10000  # $10k üstü
+BALINA_LIMIT = 10000  # $10k üstü balina uyarısı
 
 # ---------------- API ----------------
 def get_tx(tx_hash):
@@ -36,22 +36,28 @@ def analyze_tx(tx, tx_hash):
         else:
             date = "Bilinmiyor"
 
-        # ADRESLER
-        sender = tx.get("ownerAddress") or tx.get("fromAddress") or "UNKNOWN"
-        receiver = tx.get("toAddress") or "UNKNOWN"
+        # ADRESLER - TRC20 transferlerde doğru adresleri çek
+        sender = "UNKNOWN"
+        receiver = "UNKNOWN"
 
+        if tx.get("trc20TransferInfo") and len(tx["trc20TransferInfo"]) > 0:
+            t = tx["trc20TransferInfo"][0]
+            sender = t.get("from_address") or t.get("fromAddress") or "UNKNOWN"
+            receiver = t.get("to_address") or t.get("toAddress") or "UNKNOWN"
+        else:
+            sender = tx.get("ownerAddress") or tx.get("fromAddress") or "UNKNOWN"
+            receiver = tx.get("toAddress") or "UNKNOWN"
+
+        # COİN ve MİKTAR
         coin = "UNKNOWN"
         amount = 0
 
-        # TRC20 (USDT vs)
-        if tx.get("trc20TransferInfo"):
+        if tx.get("trc20TransferInfo") and len(tx["trc20TransferInfo"]) > 0:
             t = tx["trc20TransferInfo"][0]
             coin = t.get("symbol", "TOKEN")
             decimals = int(t.get("decimals", 6))
             raw_amount = t.get("amount_str") or t.get("amount") or "0"
             amount = float(raw_amount) / (10 ** decimals)
-
-        # TRX transfer
         elif tx.get("contractData") and "amount" in tx["contractData"]:
             coin = "TRX"
             amount = tx["contractData"]["amount"] / 1_000_000
@@ -83,7 +89,7 @@ def analyze_tx(tx, tx_hash):
 {receiver}
 
 💰 MİKTAR:
-{amount:,.2f} {coin}
+{amount:,.6f} {coin}
 
 💵 USD:
 ${usd_value:,.2f}
@@ -107,7 +113,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text.strip()
 
-    # HASH AYIKLA (link veya düz hash)
+    # TX HASH yakala (link veya sadece hash)
     match = re.search(r'([a-fA-F0-9]{64})', text)
     if not match:
         return
@@ -129,7 +135,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # GRUP + DM çalışır
+    # Grup ve özel mesajlarda çalışır
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
     print("✅ TRON TX ANALİZ BOTU AKTİF")
