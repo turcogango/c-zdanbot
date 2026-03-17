@@ -1,5 +1,6 @@
 import os
 import requests
+import re
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
@@ -78,15 +79,19 @@ https://tronscan.org/#/transaction/{tx_hash}
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
 
-    # TX hash kontrol (64 karakter hex)
-    if len(text) == 64:
-        tx = get_tx(text)
+    # linkten hash çek
+    match = re.search(r'transaction/([a-fA-F0-9]{64})', text)
+
+    if match:
+        tx_hash = match.group(1)
+
+        tx = get_tx(tx_hash)
 
         if not tx or "hash" not in tx:
             await update.message.reply_text("❌ TX bulunamadı")
             return
 
-        msg = analyze_tx(tx, text)
+        msg = analyze_tx(tx, tx_hash)
         await update.message.reply_text(msg)
 
 # ---------------- MAIN ----------------
@@ -95,7 +100,7 @@ def main():
 
     app.add_handler(MessageHandler(filters.TEXT, handle_message))
 
-    print("✅ TX ANALİZ BOTU AKTİF")
+    print("✅ LINK OKUYAN TX BOT AKTİF")
     app.run_polling()
 
 if __name__ == "__main__":
