@@ -36,10 +36,13 @@ def analyze_tx(tx, tx_hash):
         else:
             date = "Bilinmiyor"
 
-        # ADRESLER - TRC20 işlemlerde doğru adresleri çek
+        # ADRESLER VE MİKTAR
         sender = "UNKNOWN"
         receiver = "UNKNOWN"
+        coin = "UNKNOWN"
+        amount = 0
 
+        # TRC20 transferleri (USDT vs)
         if tx.get("trc20TransferInfo") and len(tx["trc20TransferInfo"]) > 0:
             t = tx["trc20TransferInfo"][0]
             sender = t.get("from_address") or t.get("fromAddress") or "UNKNOWN"
@@ -48,21 +51,28 @@ def analyze_tx(tx, tx_hash):
             decimals = int(t.get("decimals", 6))
             raw_amount = t.get("amount_str") or t.get("amount") or "0"
             amount = float(raw_amount) / (10 ** decimals)
+        # TRX transfer fallback
         elif tx.get("contractData") and "amount" in tx["contractData"]:
             sender = tx.get("ownerAddress") or tx.get("fromAddress") or "UNKNOWN"
             receiver = tx.get("toAddress") or "UNKNOWN"
             coin = "TRX"
             amount = tx["contractData"]["amount"] / 1_000_000
-        else:
-            coin = "UNKNOWN"
-            amount = 0
 
         # GÜNCEL KUR
-        usdt_try = get_price("USDTTRY")
-        if usdt_try == 0:
-            usdt_try = 25.50  # fallback
-
-        tl_total = amount * usdt_try
+        if coin.upper() in ["USDT", "USDC"]:
+            usdt_try = get_price("USDTTRY")
+            if usdt_try == 0:
+                usdt_try = 25.50  # fallback
+            tl_total = amount * usdt_try
+        else:
+            # TRX vs için TRXUSDT * USDTTRY
+            trx_price = get_price("TRXUSDT")
+            usdt_try = get_price("USDTTRY")
+            if trx_price == 0:
+                trx_price = 0.06  # fallback
+            if usdt_try == 0:
+                usdt_try = 25.50  # fallback
+            tl_total = amount * trx_price * usdt_try
 
         msg = f"""
 🔍 TRON TX ANALİZ
@@ -77,11 +87,11 @@ def analyze_tx(tx, tx_hash):
 👤 ALICI:
 {receiver}
 
-💵 GÜNCEL KUR:
-1 USDT = ₺{usdt_try:,.2f}
+💰 Gönderilen: {amount:,.2f} {coin}
 
-💵 TL TOPLAM:
-₺{tl_total:,.2f}
+💵 GÜNCEL KUR: 1 USDT = ₺{usdt_try:,.2f}
+
+💵 TL TOPLAM: ₺{tl_total:,.2f}
 
 🔗 https://tronscan.org/#/transaction/{tx_hash}
 """
@@ -97,7 +107,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text.strip()
 
-    # TX HASH yakala (link veya sadece hash)
     match = re.search(r'([a-fA-F0-9]{64})', text)
     if not match:
         return
@@ -118,10 +127,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- MAIN ----------------
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
-
-    # Grup ve özel mesajlarda çalışır
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-
     print("✅ TRON TX ANALİZ BOTU AKTİF")
     app.run_polling()
 
