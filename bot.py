@@ -5,7 +5,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
-TOKEN = os.getenv("BOT_TOKEN")  # Bot tokeninizi buraya koyun
+TOKEN = os.getenv("BOT_TOKEN")
 
 # ---------------- API ----------------
 def get_tx(tx_hash):
@@ -18,14 +18,14 @@ def get_tx(tx_hash):
     except:
         return None
 
-# Binance API ile anlık fiyat
-def get_binance_price(symbol):
+# CoinGecko fiyat
+def get_coingecko_price(coin_id, vs="try"):
     try:
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+        url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies={vs}"
         r = requests.get(url, timeout=5).json()
-        return float(r["price"])
+        return float(r[coin_id][vs])
     except:
-        return 0  # fallback
+        return 0
 
 # ---------------- ANALİZ ----------------
 def analyze_tx(tx, tx_hash):
@@ -59,18 +59,26 @@ def analyze_tx(tx, tx_hash):
         tl_total = 0
         cur_str = "Bilinmiyor"
 
-        if coin.upper() in ["USDT", "USDC"]:
-            usdt_try = get_binance_price("USDTTRY")
-            if usdt_try == 0:
-                usdt_try = 44.40  # fallback
-            tl_total = amount * usdt_try
-            cur_str = f"{usdt_try:,.3f} ₺"
+        if coin.upper() == "USDT":
+            price = get_coingecko_price("tether")
+            if price == 0:
+                price = 44.40
+            tl_total = amount * price
+            cur_str = f"{price:,.3f} ₺"
+
+        elif coin.upper() == "USDC":
+            price = get_coingecko_price("usd-coin")
+            if price == 0:
+                price = 44.40
+            tl_total = amount * price
+            cur_str = f"{price:,.3f} ₺"
+
         elif coin.upper() == "TRX":
-            trx_try = get_binance_price("TRXTRY")
-            if trx_try == 0:
-                trx_try = 2.73  # fallback
-            tl_total = amount * trx_try
-            cur_str = f"{trx_try:,.3f} ₺"
+            price = get_coingecko_price("tron")
+            if price == 0:
+                price = 2.73
+            tl_total = amount * price
+            cur_str = f"{price:,.3f} ₺"
 
         amount_str = f"{amount:,.2f} {coin}"
         tl_total_str = f"₺{tl_total:,.2f}"
@@ -119,7 +127,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    print("✅ TRON TX ANALİZ BOTU AKTİF")
+    print("✅ TRON TX ANALİZ BOTU AKTİF (CoinGecko)")
     app.run_polling()
 
 if __name__ == "__main__":
